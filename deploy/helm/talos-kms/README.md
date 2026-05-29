@@ -114,6 +114,26 @@ head -c 32 /dev/urandom | base64   # store as a field, e.g. key-v1
 | `metrics.enabled` | `true` | Exposes Prometheus `/metrics` on a separate port |
 | `metrics.serviceMonitor.enabled` | `false` | Render a Prometheus Operator ServiceMonitor |
 | `networkPolicy.metricsCIDRs` | `[]` | Ranges allowed to scrape metrics (plaintext) |
+| `priorityClassName` | `""` | Use an existing PriorityClass (e.g. `system-cluster-critical`) |
+| `priorityClass.create` | `false` | Render a dedicated PriorityClass instead |
+
+## Scheduling priority
+
+The KMS is boot-critical, so give it a high pod priority — it then wins
+scheduling when nodes are full and is evicted last under node pressure.
+Either point at an existing class (recommended):
+
+```yaml
+priorityClassName: system-cluster-critical
+```
+
+or have the chart create a dedicated one:
+
+```yaml
+priorityClass:
+  create: true
+  value: 1000000000   # keep below system-cluster-critical (2000000000)
+```
 
 ## Metrics and audit
 

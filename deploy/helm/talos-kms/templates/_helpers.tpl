@@ -21,3 +21,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ include "talos-kms.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{/*
+Resolved priority class name: an explicit priorityClassName wins; otherwise, if
+the chart creates one, use the fullname; else empty.
+*/}}
+{{- define "talos-kms.priorityClassName" -}}
+{{- if .Values.priorityClassName -}}
+{{- .Values.priorityClassName -}}
+{{- else if .Values.priorityClass.create -}}
+{{- include "talos-kms.fullname" . -}}
+{{- end -}}
+{{- end -}}

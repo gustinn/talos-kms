@@ -1,0 +1,12 @@
+{{- if .Values.priorityClass.create }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ include "talos-kms.priorityClassName" . }}
+  labels:
+    {{- include "talos-kms.labels" . | nindent 4 }}
+value: {{ int .Values.priorityClass.value }}
+# This is infrastructure, not a user workload: never default it onto other pods.
+globalDefault: false
+description: {{ .Values.priorityClass.description | quote }}
+{{- end }}

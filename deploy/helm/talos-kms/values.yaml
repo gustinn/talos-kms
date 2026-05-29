@@ -101,6 +101,23 @@ tolerations:
 # Spread replicas across control-plane nodes.
 podAntiAffinity: true
 
+# Pod scheduling priority. Because the KMS is boot-critical (nodes can't unlock
+# their disks without it), give it high priority so it wins scheduling and is
+# evicted last under node pressure.
+#
+# - To use an existing class (recommended), set priorityClassName to it, e.g.
+#   the built-in "system-cluster-critical", and leave priorityClass.create
+#   false.
+# - To have the chart create a dedicated class, set priorityClass.create=true;
+#   its name defaults to the release fullname unless priorityClassName is set.
+priorityClassName: ""
+priorityClass:
+  create: false
+  # value: higher wins. Stay below the built-in system-cluster-critical
+  # (2000000000) so you never outrank core cluster components.
+  value: 1000000000
+  description: "Boot-critical Talos KMS; scheduled first, evicted last."
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
