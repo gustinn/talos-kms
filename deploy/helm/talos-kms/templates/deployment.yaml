@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "talos-kms.fullname" . }}
+  labels:
+    {{- include "talos-kms.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "talos-kms.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "talos-kms.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "talos-kms.selectorLabels" . | nindent 20 }}
+      {{- end }}
+      containers:
+        - name: kms-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --kms-api-endpoint={{ .Values.apiEndpoint }}
+            - --key-dir=/etc/kms/keys
+            - --current-key-id={{ .Values.masterKey.currentKeyId }}
+            {{- if .Values.metrics.enabled }}
+            - --metrics-endpoint=:{{ .Values.metrics.port }}
+            {{- else }}
+            - --metrics-endpoint=
+            {{- end }}
+            {{- if .Values.bindClientIP }}
+            - --bind-client-ip
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            - --tls-enable
+            - --tls-cert-path=/etc/kms/tls/tls.crt
+            - --tls-key-path=/etc/kms/tls/tls.key
+            {{- end }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          # Uses the gRPC health service registered by the server.
+          livenessProbe:
+            grpc:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: keys
+              mountPath: /etc/kms/keys
+              readOnly: true
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /etc/kms/tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: keys
+          secret:
+            secretName: {{ .Values.masterKey.secretName }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.secretName }}
+        {{- end }}

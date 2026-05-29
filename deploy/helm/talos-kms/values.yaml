@@ -1,0 +1,137 @@
+image:
+  repository: ghcr.io/gustinn/talos-kms
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# Number of replicas. Run >1 for HA; all replicas must share the same master
+# key (see externalSecret) so any node can unseal against any replica.
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 4050
+
+# The gRPC API endpoint the server listens on (host:port). Leave host empty to
+# listen on all interfaces.
+apiEndpoint: ":4050"
+
+# Prometheus metrics + audit. The /metrics endpoint is plaintext HTTP and must
+# not be exposed to nodes; keep it on a separate port reachable only by the
+# scraper (see networkPolicy.metricsCIDRs).
+metrics:
+  enabled: true
+  port: 2122
+  # Render a Prometheus Operator ServiceMonitor.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    # Namespace selector label for the scraping Prometheus, if needed.
+    labels: {}
+
+# Bind the client source IP into sealed blobs. Only enable when nodes have
+# stable addresses; a node that changes IP can no longer unseal.
+bindClientIP: false
+
+tls:
+  enabled: true
+  # Name of the kubernetes.io/tls Secret holding tls.crt / tls.key.
+  # When certManager.enabled is true, this Secret is produced by the
+  # cert-manager Certificate this chart renders.
+  secretName: talos-kms-tls
+
+# Versioned encryption keys. The Secret is mounted read-only as a directory;
+# each Secret entry becomes a file named by its key id, and --key-dir points at
+# that directory. The server seals with currentKeyId and can unseal any version
+# still present, so rotation never re-seals existing data:
+#   1. add a new version to keys (and to the upstream store) and roll out;
+#   2. once all replicas have it, set currentKeyId to the new version;
+#   3. keep old versions until no node's blob references them.
+# Each value must be a valid AES key (16, 24, or 32 bytes) once decoded.
+masterKey:
+  secretName: talos-kms-keys
+  currentKeyId: v1
+  # Inline keys, used only when externalSecret is disabled (e.g. for testing).
+  # Map of keyId -> base64-encoded raw key bytes. Leave empty in production and
+  # source the Secret via externalSecret instead.
+  keys: {}
+    # v1: <base64 32 random bytes>
+
+# Render an external-secrets ExternalSecret that materializes the keys Secret
+# from an upstream store. Defaults are oriented at 1Password (the same backend
+# used elsewhere), where each key version is a field on a single item.
+externalSecret:
+  enabled: false
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword            # your (Cluster)SecretStore backed by 1Password
+    kind: ClusterSecretStore
+  # One entry per key version: the resulting Secret key (and therefore the
+  # mounted filename / key id) is `secretKey`, sourced from `remoteRef`.
+  # decodingStrategy Base64 means the stored field is base64 and is decoded to
+  # raw key bytes in the Secret.
+  decodingStrategy: Base64
+  keys:
+    - secretKey: v1
+      remoteRef:
+        key: ""                  # 1Password item, e.g. talos-kms
+        property: ""             # field on the item, e.g. key-v1
+
+# Render a cert-manager Certificate (ACME issuer). For STATE-partition KMS
+# encryption the cert MUST chain to a public root (Talos trusts only the system
+# CA store at unlock time), so the issuer must be ACME/Let's Encrypt, not an
+# internal CA.
+certManager:
+  enabled: false
+  dnsName: ""         # e.g. kms.example.com (must be publicly resolvable)
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+# Pin to control-plane nodes, which are unlocked by another method and so do
+# not depend on this KMS (avoids a cold-start deadlock).
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Spread replicas across control-plane nodes.
+podAntiAffinity: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Restrict who may reach the KMS port. By default allow the whole cluster pod
+# CIDR is NOT assumed; set ingressCIDRs to your worker node/subnet ranges.
+networkPolicy:
+  enabled: true
+  ingressCIDRs: []    # worker node/subnet ranges allowed to reach the KMS port, e.g. ["10.0.0.0/16"]
+  metricsCIDRs: []    # ranges allowed to scrape the metrics port, e.g. your monitoring subnet
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+# Scratch-based image runs as a static binary; lock it down hard.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

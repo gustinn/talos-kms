@@ -4,4 +4,5 @@
 
 package server
 
-var GetRandomAESKey = getRandomAESKey
+// EncodeHeader is exported for tests.
+var EncodeHeader = encodeHeader

@@ -1,0 +1,41 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "talos-kms.fullname" . }}
+  labels:
+    {{- include "talos-kms.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "talos-kms.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.ingressCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- if not .Values.networkPolicy.ingressCIDRs }}
+        # No ingressCIDRs set: deny all KMS ingress. Set networkPolicy.ingressCIDRs
+        # to your worker node/subnet ranges to allow unseal traffic.
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- if .Values.metrics.enabled }}
+    # Metrics is plaintext: restrict to the monitoring scraper only.
+    - from:
+        {{- range .Values.networkPolicy.metricsCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- if not .Values.networkPolicy.metricsCIDRs }}
+        # No metricsCIDRs set: deny all metrics ingress.
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+    {{- end }}
+{{- end }}

@@ -84,7 +84,7 @@ FROM tools AS proto-compile
 COPY --from=proto-specs / /
 RUN protoc -I/api --go_out=paths=source_relative:/api --go-grpc_out=paths=source_relative:/api --go-vtproto_out=paths=source_relative:/api --go-vtproto_opt=features=marshal+unmarshal+size+equal+clone /api/kms/kms.proto
 RUN rm /api/kms/kms.proto
-RUN goimports -w -local github.com/siderolabs/kms-client /api
+RUN goimports -w -local github.com/gustinn/talos-kms /api
 RUN gofumpt -w /api
 
 # runs gofumpt
@@ -156,6 +156,6 @@ ARG TARGETARCH
 COPY --from=kms-server kms-server-linux-${TARGETARCH} /kms-server
 COPY --from=image-fhs / /
 COPY --from=image-ca-certificates / /
-LABEL org.opencontainers.image.source=https://github.com/siderolabs/kms-client
+LABEL org.opencontainers.image.source=https://github.com/gustinn/talos-kms
 ENTRYPOINT ["/kms-server"]
 

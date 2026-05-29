@@ -1,0 +1,39 @@
+talos-kms ({{ include "talos-kms.fullname" . }}) deployed.
+
+Endpoint (in-cluster): {{ include "talos-kms.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+Checklist:
+{{- if not .Values.tls.enabled }}
+  ! TLS is DISABLED. The Talos KMS client uses TLS for non-insecure endpoints;
+    enable tls.enabled for any real deployment.
+{{- end }}
+{{- if .Values.certManager.enabled }}
+  - cert-manager Certificate requested for {{ .Values.certManager.dnsName }}
+    via issuer {{ .Values.certManager.issuerRef.name }}.
+    Ensure that issuer is an ACME issuer (public cert) and that {{ .Values.certManager.dnsName }}
+    is publicly resolvable with a solvable (DNS-01 recommended) challenge.
+{{- end }}
+{{- if .Values.externalSecret.enabled }}
+  - ExternalSecret will materialize Secret/{{ .Values.masterKey.secretName }}
+    from {{ .Values.externalSecret.secretStoreRef.name }}. Verify it syncs:
+      kubectl -n {{ .Release.Namespace }} get externalsecret {{ .Values.masterKey.secretName }}
+{{- else }}
+  - Provide Secret/{{ .Values.masterKey.secretName }} with one entry per key id
+    (current: {{ .Values.masterKey.currentKeyId }}), each a valid AES key
+    (32 bytes for AES-256), via masterKey.keys or out of band.
+{{- end }}
+{{- if and .Values.networkPolicy.enabled (not .Values.networkPolicy.ingressCIDRs) }}
+  ! NetworkPolicy is enabled with no ingressCIDRs => all ingress denied.
+    Set networkPolicy.ingressCIDRs to your worker subnet(s) or nodes cannot unseal.
+{{- end }}
+
+Configure Talos worker machine config to point at this KMS:
+
+  machine:
+    systemDiskEncryption:
+      state:
+        provider: luks2
+        keys:
+          - slot: 0
+            kms:
+              endpoint: https://{{ .Values.certManager.dnsName | default "kms.example.com" }}:{{ .Values.service.port }}

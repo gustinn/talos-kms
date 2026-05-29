@@ -1,0 +1,16 @@
+apiVersion: v2
+name: talos-kms
+description: |
+  Talos Linux network KMS server for disk encryption (Seal/Unseal).
+  Intended to run on control-plane nodes (unlocked by another method) and to
+  serve worker nodes that KMS-encrypt their STATE partition.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - talos
+  - kms
+  - disk-encryption
+home: https://github.com/gustinn/talos-kms
+sources:
+  - https://github.com/gustinn/talos-kms

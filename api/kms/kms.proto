@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package sidero.kms;
 
-option go_package = "github.com/siderolabs/kms/api/kms";
+option go_package = "github.com/gustinn/talos-kms/api/kms";
 
 // KMSService provides APIs to encrypt and decrypt data.
 service KMSService {

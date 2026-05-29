@@ -1,0 +1,21 @@
+{{- if .Values.certManager.enabled }}
+# IMPORTANT: For STATE-partition KMS encryption, Talos validates the KMS server
+# using only the system/public CA trust store at unlock time (the machine-config
+# CAs live in the not-yet-unlocked STATE partition). The issuerRef below MUST
+# therefore be an ACME issuer producing a publicly-trusted certificate, not an
+# internal/self-signed CA.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "talos-kms.fullname" . }}
+  labels:
+    {{- include "talos-kms.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.tls.secretName }}
+  dnsNames:
+    - {{ required "certManager.dnsName is required when certManager.enabled" .Values.certManager.dnsName | quote }}
+  issuerRef:
+    name: {{ .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+    group: {{ .Values.certManager.issuerRef.group }}
+{{- end }}
