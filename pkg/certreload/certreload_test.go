@@ -11,7 +11,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"io"
 	"log/slog"
 	"math/big"
 	"os"
@@ -25,7 +24,7 @@ import (
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 // genCert writes a fresh self-signed cert/key pair to certPath/keyPath and

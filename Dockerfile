@@ -1,5 +1,5 @@
 # Build a static kms-server binary and ship it on scratch.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 
 # Cache module downloads.

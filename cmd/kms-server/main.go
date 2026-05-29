@@ -71,16 +71,18 @@ func main() {
 		"bind the client source IP into the sealed blob (requires stable node addresses)")
 	flag.Parse()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	if err := run(ctx); err != nil {
+	// main does no cleanup of its own, so os.Exit here skips no defers; all
+	// teardown is owned by run via the signal-canceled context.
+	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context) error {
+func run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
 	logger.Info("starting KMS server",
@@ -195,9 +197,10 @@ func keyProvider() (server.KeyProvider, error) {
 // serverOptions builds the gRPC server options: transport credentials plus
 // resource limits to bound the DoS surface of a boot-critical service.
 func serverOptions(logger *slog.Logger) ([]grpc.ServerOption, error) {
-	opts := []grpc.ServerOption{
+	opts := make([]grpc.ServerOption, 0, 5)
+	opts = append(opts,
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
-		grpc.ConnectionTimeout(10 * time.Second),
+		grpc.ConnectionTimeout(10*time.Second),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime: 10 * time.Second,
 		}),
@@ -206,7 +209,7 @@ func serverOptions(logger *slog.Logger) ([]grpc.ServerOption, error) {
 			Time:              2 * time.Hour,
 			Timeout:           20 * time.Second,
 		}),
-	}
+	)
 
 	if !kmsFlags.tlsEnable {
 		return opts, nil
@@ -253,7 +256,7 @@ func recoveryInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 }
 
 // startMetricsServer runs the Prometheus /metrics endpoint in the errgroup and
-// shuts it down when the context is cancelled.
+// shuts it down when the context is canceled.
 func startMetricsServer(ctx context.Context, eg *errgroup.Group, logger *slog.Logger, reg *prometheus.Registry) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
@@ -277,9 +280,12 @@ func startMetricsServer(ctx context.Context, eg *errgroup.Group, logger *slog.Lo
 	eg.Go(func() error {
 		<-ctx.Done()
 
+		// ctx is already canceled (that's what triggered shutdown), so a
+		// derived context would expire immediately and abort the drain. Use a
+		// fresh background context to give in-flight requests time to finish.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 		defer cancel()
 
-		return httpSrv.Shutdown(shutdownCtx)
+		return httpSrv.Shutdown(shutdownCtx) //nolint:contextcheck
 	})
 }

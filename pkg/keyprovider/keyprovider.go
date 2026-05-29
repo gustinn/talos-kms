@@ -79,8 +79,8 @@ func (s *Static) Get(_ context.Context, id string) ([]byte, error) {
 // external-secrets Secret mounted as a directory, where each version is a
 // separate Secret key.
 type Dir struct {
-	currentID string
 	keys      map[string][]byte
+	currentID string
 }
 
 // NewDir loads all keys from dir and designates currentID as the sealing key.

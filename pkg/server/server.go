@@ -90,8 +90,8 @@ type Server struct {
 
 	logger       *slog.Logger
 	keys         KeyProvider
-	bindClientIP bool
 	observer     Observer
+	bindClientIP bool
 }
 
 // Option configures a Server.

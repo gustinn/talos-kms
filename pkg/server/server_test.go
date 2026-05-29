@@ -23,8 +23,10 @@ import (
 	"github.com/gustinn/talos-kms/pkg/server"
 )
 
+const testNodeUUID = "abcd"
+
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 func randomBytes(t *testing.T, n int) []byte {
@@ -42,9 +44,9 @@ func randomBytes(t *testing.T, n int) []byte {
 // current id. It supports the same key for every node so per-node isolation is
 // exercised through the AEAD binding, not the provider.
 type fakeProvider struct {
-	current string
-	keys    map[string][]byte
 	err     error
+	keys    map[string][]byte
+	current string
 }
 
 func newFakeProvider(t *testing.T) *fakeProvider {
@@ -100,11 +102,11 @@ func TestSealUnseal(t *testing.T) {
 	passphrase := randomBytes(t, 32)
 	ctx := t.Context()
 
-	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 	require.NotEmpty(t, encrypted.Data)
 
-	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(passphrase, decrypted.Data))
 }
@@ -118,7 +120,7 @@ func TestNodeUUIDIsolation(t *testing.T) {
 	passphrase := randomBytes(t, 32)
 	ctx := t.Context()
 
-	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 
 	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: "abce", Data: encrypted.Data})
@@ -133,13 +135,13 @@ func TestTamperedData(t *testing.T) {
 	passphrase := randomBytes(t, 32)
 	ctx := t.Context()
 
-	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 
 	// Flip a byte in the ciphertext body (past the header).
 	encrypted.Data[len(encrypted.Data)-1] ^= 0xFF
 
-	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.False(t, bytes.Equal(passphrase, decrypted.Data))
 }
@@ -154,7 +156,7 @@ func TestKeyRotationNoReseal(t *testing.T) {
 	ctx := t.Context()
 
 	// Seal under v1.
-	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 
 	// Rotate: add v2 and make it current.
@@ -162,12 +164,12 @@ func TestKeyRotationNoReseal(t *testing.T) {
 	p.current = "v2"
 
 	// New seals use v2...
-	enc2, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	enc2, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 	require.NotEqual(t, encrypted.Data[:4], enc2.Data[:4]) // headers differ (v1 vs v2)
 
 	// ...but the old v1 blob still unseals because v1 is still present.
-	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(passphrase, decrypted.Data))
 }
@@ -181,13 +183,13 @@ func TestUnknownKeyVersion(t *testing.T) {
 	passphrase := randomBytes(t, 32)
 	ctx := t.Context()
 
-	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 
 	// Remove the key version the blob was sealed under.
 	delete(p.keys, "v1")
 
-	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err := srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.False(t, bytes.Equal(passphrase, decrypted.Data))
 }
@@ -198,14 +200,14 @@ func TestClientIPBinding(t *testing.T) {
 	srv, _ := newServer(t, server.WithClientIPBinding())
 	passphrase := randomBytes(t, 32)
 
-	encrypted, err := srv.Seal(ctxWithIP(t, "10.0.0.1"), &kms.Request{NodeUuid: "abcd", Data: passphrase})
+	encrypted, err := srv.Seal(ctxWithIP(t, "10.0.0.1"), &kms.Request{NodeUuid: testNodeUUID, Data: passphrase})
 	require.NoError(t, err)
 
-	decrypted, err := srv.Unseal(ctxWithIP(t, "10.0.0.1"), &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err := srv.Unseal(ctxWithIP(t, "10.0.0.1"), &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(passphrase, decrypted.Data))
 
-	decrypted, err = srv.Unseal(ctxWithIP(t, "10.0.0.2"), &kms.Request{NodeUuid: "abcd", Data: encrypted.Data})
+	decrypted, err = srv.Unseal(ctxWithIP(t, "10.0.0.2"), &kms.Request{NodeUuid: testNodeUUID, Data: encrypted.Data})
 	require.NoError(t, err)
 	require.False(t, bytes.Equal(passphrase, decrypted.Data))
 }
@@ -215,7 +217,7 @@ func TestClientIPBindingFailsClosed(t *testing.T) {
 
 	srv, _ := newServer(t, server.WithClientIPBinding())
 
-	_, err := srv.Seal(t.Context(), &kms.Request{NodeUuid: "abcd", Data: randomBytes(t, 32)})
+	_, err := srv.Seal(t.Context(), &kms.Request{NodeUuid: testNodeUUID, Data: randomBytes(t, 32)})
 	require.Equal(t, codes.Internal, status.Code(err))
 }
 
@@ -225,7 +227,7 @@ func TestKeyProviderErrorOnSeal(t *testing.T) {
 	srv, p := newServer(t)
 	p.err = errors.New("backend down")
 
-	_, err := srv.Seal(t.Context(), &kms.Request{NodeUuid: "abcd", Data: randomBytes(t, 32)})
+	_, err := srv.Seal(t.Context(), &kms.Request{NodeUuid: testNodeUUID, Data: randomBytes(t, 32)})
 	require.Equal(t, codes.Internal, status.Code(err))
 }
 
@@ -236,14 +238,14 @@ func TestInvalidInputs(t *testing.T) {
 	ctx := t.Context()
 
 	// Wrong passphrase length on Seal.
-	_, err := srv.Seal(ctx, &kms.Request{NodeUuid: "abcd", Data: randomBytes(t, 64)})
+	_, err := srv.Seal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: randomBytes(t, 64)})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 
 	// Empty data on Unseal (no header).
-	_, err = srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: make([]byte, 0)})
+	_, err = srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: make([]byte, 0)})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 
 	// Valid header but garbage/short body.
-	_, err = srv.Unseal(ctx, &kms.Request{NodeUuid: "abcd", Data: append(server.EncodeHeader("v1"), 1, 2, 3)})
+	_, err = srv.Unseal(ctx, &kms.Request{NodeUuid: testNodeUUID, Data: append(server.EncodeHeader("v1"), 1, 2, 3)})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }

@@ -19,13 +19,12 @@ import (
 // file content changes. It is safe for concurrent use.
 type Reloader struct {
 	logger   *slog.Logger
+	cert     *tls.Certificate
 	certPath string
 	keyPath  string
-
-	mu       sync.RWMutex
-	cert     *tls.Certificate
 	certData []byte
 	keyData  []byte
+	mu       sync.RWMutex
 }
 
 // New creates a Reloader and loads the initial keypair, failing if it cannot be
