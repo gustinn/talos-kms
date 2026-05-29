@@ -1,14 +1,7 @@
-# THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.
-#
-# Generated on 2026-02-06T17:08:51Z by kres f3ab59e.
-
+# Only the Go module is needed to build the binary.
 *
 !api
 !cmd
 !pkg
 !go.mod
 !go.sum
-!.golangci.yml
-!README.md
-!.markdownlint.json
-!hack/govulncheck.sh
