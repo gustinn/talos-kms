@@ -1,10 +1,7 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "description": "THIS FILE WAS AUTOMATICALLY GENERATED, PLEASE DO NOT EDIT.",
-    "prHeader": "Update Request | Renovate Bot",
     "extends": [
         ":dependencyDashboard",
-        ":gitSignOff",
         ":semanticCommitScopeDisabled",
         "schedule:earlyMondays"
     ],
@@ -17,18 +14,6 @@
                 "patch",
                 "pin",
                 "digest"
-            ]
-        },
-        {
-            "enabled": false,
-            "matchFileNames": [
-                "Dockerfile"
-            ]
-        },
-        {
-            "enabled": false,
-            "matchFileNames": [
-                ".github/workflows/*.yaml"
             ]
         }
     ],
