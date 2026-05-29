@@ -5,11 +5,22 @@ encryption**.
 Talos nodes can seal their LUKS volume keys against a network KMS and unseal
 them on every boot; this is the server side of that protocol.
 
+## Why this exists
+
+I wanted full-disk encryption on Talos nodes that **don't have TPM 2.0**.
+Talos can encrypt the `STATE` and `EPHEMERAL` partitions, but its stronger
+unlock methods assume a TPM; without one, the practical alternative is the
+`kms` key provider, which seals each node's volume key against a network KMS
+and asks for it back at boot.
+That needs a KMS server to talk to — and the upstream one is an explicitly
+minimal reference, not something meant to run as real infrastructure.
+This fork is that server, hardened enough to actually depend on for booting a
+cluster.
+
 > **Fork notice.**
 > This is a fork of
-> [`siderolabs/kms-client`](https://github.com/siderolabs/kms-client), whose
-> upstream is a deliberately minimal *reference* implementation.
-> This fork keeps the same wire protocol but hardens it for real use: per-node
+> [`siderolabs/kms-client`](https://github.com/siderolabs/kms-client).
+> It keeps the same wire protocol but hardens it for real use: per-node
 > cryptographic binding, versioned keys with zero-downtime rotation, TLS with
 > hot reload, Prometheus metrics + audit logging, graceful shutdown, and a Helm
 > chart.
