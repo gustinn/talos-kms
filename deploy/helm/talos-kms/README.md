@@ -107,6 +107,8 @@ head -c 32 /dev/urandom | base64   # store as a field, e.g. key-v1
 | `replicaCount` | `2` | HA; all replicas share the same key set |
 | `masterKey.currentKeyId` | `v1` | Key id used to seal new data |
 | `bindClientIP` | `true` | Disable only without stable node IPs |
+| `probes.enabled` | `true` | Use plaintext HTTP `/livez` and `/readyz` probes |
+| `probes.port` | `8080` | Container-only probe port; not exposed by the Service |
 | `tls.enabled` | `true` | Disabling is for testing only |
 | `certManager.enabled` | `false` | Must use an ACME issuer (see above) |
 | `externalSecret.enabled` | `false` | Materializes the keys Secret (1Password) |
@@ -150,3 +152,17 @@ off the gRPC port — restrict it via `networkPolicy.metricsCIDRs`):
 Every request also emits a structured JSON audit line (operation, outcome,
 node UUID, client IP, duration). Node UUID is intentionally kept out of metric
 labels (high cardinality) and recorded only in the audit log.
+
+## Probes
+
+The chart uses a dedicated plaintext HTTP probe port instead of Kubernetes'
+native gRPC probe against the KMS API port. This matters when `tls.enabled` is
+true: kubelet gRPC probes cannot be configured for TLS, while the KMS API
+expects TLS on port 4050.
+
+The probe port is not added to the Service. Kubelet probes call the pod IP
+directly:
+
+- `/livez` returns success when the process is running.
+- `/readyz` returns success when the server's gRPC health service reports
+  `SERVING`.

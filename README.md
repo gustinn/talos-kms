@@ -111,6 +111,7 @@ The Helm chart and its README cover this in detail.
 | --- | --- | --- |
 | `--kms-api-endpoint` | `:4050` | gRPC API listen address |
 | `--metrics-endpoint` | `:2122` | Prometheus `/metrics` listen address (empty to disable) |
+| `--probe-endpoint` | `:8080` | Plaintext HTTP `/livez` and `/readyz` listen address (empty to disable) |
 | `--key-path` | | Path to a single key file (mutually exclusive with `--key-dir`) |
 | `--key-dir` | | Directory of versioned keys, one file per key id |
 | `--current-key-id` | `v1` | Key id used to seal new data |
@@ -196,6 +197,10 @@ See the chart's [README](deploy/helm/talos-kms/README.md).
   node UUID, client IP, duration).
   Node UUID is kept out of metric labels (high cardinality) and recorded only in
   the audit log.
+- **Kubernetes probes** on `--probe-endpoint`: `/livez` and `/readyz` are
+  plaintext HTTP endpoints intended for kubelet probes. This is separate from
+  the KMS gRPC API because Kubernetes native gRPC probes cannot be configured
+  for TLS.
 
 ## Development
 

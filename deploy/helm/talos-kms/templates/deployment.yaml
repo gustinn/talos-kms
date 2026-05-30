@@ -46,6 +46,11 @@ spec:
             - --kms-api-endpoint={{ .Values.apiEndpoint }}
             - --key-dir=/etc/kms/keys
             - --current-key-id={{ .Values.masterKey.currentKeyId }}
+            {{- if .Values.probes.enabled }}
+            - --probe-endpoint=:{{ .Values.probes.port }}
+            {{- else }}
+            - --probe-endpoint=
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - --metrics-endpoint=:{{ .Values.metrics.port }}
             {{- else }}
@@ -61,22 +66,31 @@ spec:
             - name: grpc
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+            {{- if .Values.probes.enabled }}
+            - name: probes
+              containerPort: {{ .Values.probes.port }}
+              protocol: TCP
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
               protocol: TCP
             {{- end }}
-          # Uses the gRPC health service registered by the server.
+          {{- if .Values.probes.enabled }}
+          # Uses the plaintext probe endpoint because the KMS gRPC API may require TLS.
           livenessProbe:
-            grpc:
-              port: {{ .Values.service.port }}
+            httpGet:
+              path: /livez
+              port: probes
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
-            grpc:
-              port: {{ .Values.service.port }}
+            httpGet:
+              path: /readyz
+              port: probes
             initialDelaySeconds: 2
             periodSeconds: 5
+          {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

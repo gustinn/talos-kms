@@ -49,6 +49,7 @@ const maxRecvMsgSize = 64 * 1024
 var kmsFlags struct {
 	apiEndpoint     string
 	metricsEndpoint string
+	probeEndpoint   string
 	keyPath         string
 	keyDir          string
 	currentKeyID    string
@@ -61,6 +62,7 @@ var kmsFlags struct {
 func main() {
 	flag.StringVar(&kmsFlags.apiEndpoint, "kms-api-endpoint", ":4050", "gRPC API endpoint for the KMS")
 	flag.StringVar(&kmsFlags.metricsEndpoint, "metrics-endpoint", ":2122", "HTTP endpoint for Prometheus metrics (empty to disable)")
+	flag.StringVar(&kmsFlags.probeEndpoint, "probe-endpoint", ":8080", "HTTP endpoint for Kubernetes liveness/readiness probes (empty to disable)")
 	flag.StringVar(&kmsFlags.keyPath, "key-path", "", "path to a single encryption key (mutually exclusive with --key-dir)")
 	flag.StringVar(&kmsFlags.keyDir, "key-dir", "", "directory of versioned keys, one file per key id (mutually exclusive with --key-path)")
 	flag.StringVar(&kmsFlags.currentKeyID, "current-key-id", "v1", "key id used to seal new data; with --key-dir it must name a file in the dir")
@@ -87,6 +89,7 @@ func run() error {
 
 	logger.Info("starting KMS server",
 		slog.String("apiEndpoint", kmsFlags.apiEndpoint),
+		slog.String("probeEndpoint", kmsFlags.probeEndpoint),
 		slog.String("keyPath", kmsFlags.keyPath),
 		slog.String("keyDir", kmsFlags.keyDir),
 		slog.String("currentKeyID", kmsFlags.currentKeyID),
@@ -134,6 +137,9 @@ func run() error {
 
 	if kmsFlags.metricsEndpoint != "" {
 		startMetricsServer(ctx, eg, logger, reg)
+	}
+	if kmsFlags.probeEndpoint != "" {
+		startProbeServer(ctx, eg, logger, healthSrv)
 	}
 
 	eg.Go(func() error {
@@ -253,6 +259,50 @@ func recoveryInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 
 		return handler(ctx, req)
 	}
+}
+
+// startProbeServer runs plaintext liveness/readiness endpoints for Kubernetes
+// probes. The KMS API port may require TLS, which native Kubernetes gRPC probes
+// cannot configure.
+func startProbeServer(ctx context.Context, eg *errgroup.Group, logger *slog.Logger, healthSrv *health.Server) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := healthSrv.Check(r.Context(), &healthpb.HealthCheckRequest{})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	httpSrv := &http.Server{
+		Addr:              kmsFlags.probeEndpoint,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	eg.Go(func() error {
+		logger.Info("starting probe server", slog.String("endpoint", kmsFlags.probeEndpoint))
+
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("probe server error: %w", err)
+		}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		<-ctx.Done()
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+		defer cancel()
+
+		return httpSrv.Shutdown(shutdownCtx) //nolint:contextcheck
+	})
 }
 
 // startMetricsServer runs the Prometheus /metrics endpoint in the errgroup and

@@ -11,6 +11,13 @@ service:
   type: ClusterIP
   port: 4050
 
+# Plaintext HTTP liveness/readiness endpoint used only by kubelet probes.
+# This avoids probing the TLS-enabled gRPC API with Kubernetes' native gRPC
+# probe, which cannot be configured for TLS.
+probes:
+  enabled: true
+  port: 8080
+
 # The gRPC API endpoint the server listens on (host:port). Leave host empty to
 # listen on all interfaces.
 apiEndpoint: ":4050"
