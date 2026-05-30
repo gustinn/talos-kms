@@ -176,6 +176,16 @@ docker build -t ghcr.io/gustinn/talos-kms:dev .
 The image is built `FROM scratch` (static binary), so it runs comfortably as a
 non-root, read-only-rootfs container.
 
+### Releases
+
+Tagged pushes matching `v*` are released with GoReleaser. A tag such as
+`v1.2.3` creates Linux `amd64`/`arm64` binary archives, checksums, a packaged
+Helm chart with app version `1.2.3`, and GHCR multi-arch image tags including
+`v1.2.3`, `1.2.3`, `1.2`, and `latest`.
+
+Non-tag CI runs execute `goreleaser release --snapshot --clean --skip=publish`
+and upload the generated `dist/` artifacts for validation.
+
 ## Kubernetes
 
 A Helm chart lives in [`deploy/helm/talos-kms`](deploy/helm/talos-kms).

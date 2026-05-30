@@ -32,109 +32,72 @@ jobs:
       - name: lint
         uses: golangci/golangci-lint-action@v9
 
-  artifacts:
+  release:
     runs-on: ubuntu-latest
     needs: test
     permissions:
-      contents: read
+      contents: write
+      packages: write
     steps:
       - name: checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: setup-go
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: setup-helm
         uses: azure/setup-helm@v4
-      - name: version
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            ref="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-            ref="$(printf '%s' "${ref}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^0-9a-z]+/-/g; s/^-+|-+$//g')"
-            version="0.0.0-${ref}.${GITHUB_SHA::12}"
-          fi
-
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-      - name: build-binaries
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p dist
-          for target in linux/amd64 linux/arm64; do
-            goos="${target%/*}"
-            goarch="${target#*/}"
-            package="talos-kms_${VERSION}_${goos}_${goarch}"
-
-            mkdir -p "dist/${package}"
-            CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" \
-              go build -trimpath -ldflags="-s -w" -o "dist/${package}/kms-server" ./cmd/kms-server
-            cp README.md LICENSE "dist/${package}/"
-            tar -C dist -czf "dist/${package}.tar.gz" "${package}"
-            rm -rf "dist/${package}"
-          done
-      - name: package-helm-chart
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: helm package deploy/helm/talos-kms --version "${VERSION}" --app-version "${VERSION}" --destination dist
-      - name: checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd dist
-          sha256sum *.tar.gz *.tgz > checksums.txt
-      - name: upload-artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: talos-kms_${{ steps.version.outputs.version }}
-          path: dist/*
-          if-no-files-found: error
-
-  build:
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: checkout
-        uses: actions/checkout@v6
       - name: set-up-buildx
         uses: docker/setup-buildx-action@v4
+      - name: image-repository
+        id: image-repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "image_repository=ghcr.io/${owner}/talos-kms" >> "${GITHUB_OUTPUT}"
+      - name: goreleaser-check
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+        env:
+          IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}
       - name: login-to-ghcr
-        # No write token on PRs from forks; build still runs to validate it.
-        if: github.event_name != 'pull_request'
+        if: github.ref_type == 'tag'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: image-metadata
-        id: meta
-        uses: docker/metadata-action@v6
+      - name: goreleaser-snapshot
+        if: github.ref_type != 'tag'
+        uses: goreleaser/goreleaser-action@v7
         with:
-          images: ghcr.io/${{ github.repository_owner }}/talos-kms
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-      - name: build-and-push
-        uses: docker/build-push-action@v7
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}
+      - name: upload-snapshot-artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v6
         with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          name: talos-kms-snapshot
+          path: dist/*
+          if-no-files-found: error
+      - name: goreleaser-release
+        if: github.ref_type == 'tag'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}

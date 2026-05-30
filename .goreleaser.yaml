@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: talos-kms
+
+before:
+  hooks:
+    - mkdir -p _out/goreleaser
+    - rm -f _out/goreleaser/talos-kms-*.tgz
+    - helm package deploy/helm/talos-kms --version "{{ .Version }}" --app-version "{{ .Version }}" --destination _out/goreleaser
+
+builds:
+  - id: kms-server
+    main: ./cmd/kms-server
+    binary: kms-server
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - id: kms-server
+    ids:
+      - kms-server
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+  extra_files:
+    - glob: ./_out/goreleaser/talos-kms-*.tgz
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+dockers_v2:
+  - id: talos-kms
+    ids:
+      - kms-server
+    dockerfile: Dockerfile
+    flags:
+      - --target=goreleaser
+    images:
+      - "{{ .Env.IMAGE_REPOSITORY }}"
+    tags:
+      - "{{ if not .IsSnapshot }}{{ .Tag }}{{ end }}"
+      - "{{ .Version }}"
+      - "{{ if not .IsSnapshot }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .IsSnapshot }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.name: "{{ .ProjectName }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+    annotations:
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.name: "{{ .ProjectName }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+
+release:
+  extra_files:
+    - glob: ./_out/goreleaser/talos-kms-*.tgz

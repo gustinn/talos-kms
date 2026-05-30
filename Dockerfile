@@ -1,4 +1,5 @@
-# Build a static kms-server binary and ship it on scratch.
+# Build a static kms-server binary and ship it on scratch. GoReleaser targets
+# the copy-only goreleaser stage and provides the compiled binary in its context.
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 
@@ -12,7 +13,13 @@ COPY . .
 ENV CGO_ENABLED=0
 RUN go build -trimpath -ldflags="-s -w" -o /kms-server ./cmd/kms-server
 
-FROM scratch
+FROM scratch AS runtime
 COPY --from=build /kms-server /kms-server
+LABEL org.opencontainers.image.source=https://github.com/gustinn/talos-kms
+ENTRYPOINT ["/kms-server"]
+
+FROM scratch AS goreleaser
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/kms-server /kms-server
 LABEL org.opencontainers.image.source=https://github.com/gustinn/talos-kms
 ENTRYPOINT ["/kms-server"]

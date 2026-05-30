@@ -24,6 +24,8 @@ templates in `templates/`.
   container image.
 - `helm template talos-kms deploy/helm/talos-kms` renders the chart when Helm is
   installed.
+- `goreleaser release --snapshot --clean --skip=publish` validates release
+  archives, the Helm package, and container builds without publishing.
 
 ## Coding Style & Naming Conventions
 
