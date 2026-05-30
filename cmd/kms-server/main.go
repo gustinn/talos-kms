@@ -67,8 +67,8 @@ func main() {
 	flag.BoolVar(&kmsFlags.tlsEnable, "tls-enable", false, "whether to enable TLS or not")
 	flag.StringVar(&kmsFlags.tlsCertPath, "tls-cert-path", "", "TLS server certificate path")
 	flag.StringVar(&kmsFlags.tlsKeyPath, "tls-key-path", "", "TLS server key path")
-	flag.BoolVar(&kmsFlags.bindClientIP, "bind-client-ip", false,
-		"bind the client source IP into the sealed blob (requires stable node addresses)")
+	flag.BoolVar(&kmsFlags.bindClientIP, "bind-client-ip", true,
+		"bind the client source IP into the sealed blob (set false only when node addresses are not stable)")
 	flag.Parse()
 
 	// main does no cleanup of its own, so os.Exit here skips no defers; all

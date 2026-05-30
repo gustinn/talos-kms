@@ -28,9 +28,9 @@ metrics:
     # Namespace selector label for the scraping Prometheus, if needed.
     labels: {}
 
-# Bind the client source IP into sealed blobs. Only enable when nodes have
-# stable addresses; a node that changes IP can no longer unseal.
-bindClientIP: false
+# Bind the client source IP into sealed blobs. Disable only when nodes do not
+# have stable addresses; a node that changes IP can no longer unseal.
+bindClientIP: true
 
 tls:
   enabled: true

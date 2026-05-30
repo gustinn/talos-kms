@@ -40,7 +40,7 @@ dial time — but this chart's defaults target the STATE case.)
 
 ```yaml
 # values-prod.yaml
-bindClientIP: false
+bindClientIP: true
 
 externalSecret:
   enabled: true
@@ -106,7 +106,7 @@ head -c 32 /dev/urandom | base64   # store as a field, e.g. key-v1
 | --- | --- | --- |
 | `replicaCount` | `2` | HA; all replicas share the same key set |
 | `masterKey.currentKeyId` | `v1` | Key id used to seal new data |
-| `bindClientIP` | `false` | Enable only with stable node IPs |
+| `bindClientIP` | `true` | Disable only without stable node IPs |
 | `tls.enabled` | `true` | Disabling is for testing only |
 | `certManager.enabled` | `false` | Must use an ACME issuer (see above) |
 | `externalSecret.enabled` | `false` | Materializes the keys Secret (1Password) |

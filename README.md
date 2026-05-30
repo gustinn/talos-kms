@@ -117,7 +117,7 @@ The Helm chart and its README cover this in detail.
 | `--tls-enable` | `false` | Enable TLS |
 | `--tls-cert-path` | | Server certificate (PEM); hot-reloaded on change |
 | `--tls-key-path` | | Server private key (PEM); hot-reloaded on change |
-| `--bind-client-ip` | `false` | Also bind the client source IP into sealed blobs |
+| `--bind-client-ip` | `true` | Also bind the client source IP into sealed blobs |
 
 Keys must be a valid AES length (16, 24, or 32 bytes); they are validated at
 startup so a bad key fails fast instead of on a node's first boot.
@@ -125,8 +125,8 @@ startup so a bad key fails fast instead of on a node's first boot.
 each key version is a separate Secret entry.
 
 `--bind-client-ip` ties a blob to the node's source IP.
-Only enable it when nodes have stable addresses — a node that changes IP (DHCP
-renewal, re-IP) will no longer be able to unseal.
+Disable it only when nodes do not have stable addresses — a node that changes
+IP (DHCP renewal, re-IP) will no longer be able to unseal while it is enabled.
 
 ### Key rotation (no re-seal)
 

@@ -51,9 +51,7 @@ spec:
             {{- else }}
             - --metrics-endpoint=
             {{- end }}
-            {{- if .Values.bindClientIP }}
-            - --bind-client-ip
-            {{- end }}
+            - --bind-client-ip={{ .Values.bindClientIP }}
             {{- if .Values.tls.enabled }}
             - --tls-enable
             - --tls-cert-path=/etc/kms/tls/tls.crt
