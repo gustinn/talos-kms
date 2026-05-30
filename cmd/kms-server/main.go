@@ -138,6 +138,7 @@ func run() error {
 	if kmsFlags.metricsEndpoint != "" {
 		startMetricsServer(ctx, eg, logger, reg)
 	}
+
 	if kmsFlags.probeEndpoint != "" {
 		startProbeServer(ctx, eg, logger, healthSrv)
 	}
@@ -273,6 +274,7 @@ func startProbeServer(ctx context.Context, eg *errgroup.Group, logger *slog.Logg
 		resp, err := healthSrv.Check(r.Context(), &healthpb.HealthCheckRequest{})
 		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 			http.Error(w, "not ready", http.StatusServiceUnavailable)
+
 			return
 		}
 
