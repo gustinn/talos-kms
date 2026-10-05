@@ -4,18 +4,5 @@
         ":dependencyDashboard",
         ":semanticCommitScopeDisabled",
         "schedule:earlyMondays"
-    ],
-    "packageRules": [
-        {
-            "groupName": "dependencies",
-            "matchUpdateTypes": [
-                "major",
-                "minor",
-                "patch",
-                "pin",
-                "digest"
-            ]
-        }
-    ],
-    "separateMajorMinor": false
+    ]
 }
