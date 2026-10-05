@@ -1,6 +1,6 @@
 # Build a static kms-server binary and ship it on scratch. GoReleaser targets
 # the copy-only goreleaser stage and provides the compiled binary in its context.
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 # Cache module downloads.
