@@ -25,6 +25,7 @@ linters:
   default: all
   disable:
     - exhaustruct
+    - exhaustruct_v5
     - err113
     - forbidigo
     - funcorder
