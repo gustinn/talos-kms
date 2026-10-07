@@ -1,6 +1,11 @@
 image:
   repository: ghcr.io/gustinn/talos-kms
   tag: ""            # defaults to .Chart.AppVersion
+  # Pin the exact image by digest (takes precedence over tag). GHCR tags are
+  # mutable; a digest makes the chart immune to a registry-side tag overwrite.
+  # Take it from the release that shipped this chart version, e.g.
+  #   docker manifest inspect ghcr.io/gustinn/talos-kms:<tag>
+  digest: ""         # e.g. sha256:...
   pullPolicy: IfNotPresent
 
 # Number of replicas. Run >1 for HA; all replicas must share the same master
