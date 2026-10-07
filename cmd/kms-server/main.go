@@ -236,7 +236,7 @@ func serverOptions(logger *slog.Logger) ([]grpc.ServerOption, error) {
 
 	creds := credentials.NewTLS(&tls.Config{
 		GetCertificate: reloader.GetCertificate,
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     tls.VersionTLS13,
 	})
 
 	return append(opts, grpc.Creds(creds)), nil
