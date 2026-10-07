@@ -1,0 +1,22 @@
+# Values used only by CI to exercise every template path. Not part of the
+# packaged chart and never applied to a cluster.
+externalSecret:
+  enabled: true
+  secretStoreRef:
+    name: ci-store
+  keys:
+    - secretKey: v1
+      remoteRef:
+        key: ci-item
+        property: ci-field
+certManager:
+  enabled: true
+  dnsName: kms.example.com
+metrics:
+  serviceMonitor:
+    enabled: true
+priorityClass:
+  create: true
+networkPolicy:
+  ingressCIDRs: ["10.0.0.0/16"]
+  metricsCIDRs: ["10.1.0.0/24"]

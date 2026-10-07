@@ -32,6 +32,45 @@ jobs:
       - name: lint
         uses: golangci/golangci-lint-action@v9
 
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: setup-helm
+        uses: azure/setup-helm@v5
+      - name: lint
+        run: |
+          set -euo pipefail
+          helm lint deploy/helm/talos-kms
+          helm lint deploy/helm/talos-kms -f deploy/helm/ci-values.yaml
+      - name: render
+        run: |
+          set -euo pipefail
+          # Default values, every optional resource enabled, and the degenerate
+          # paths (inline test keys, probes/metrics/TLS disabled).
+          helm template talos-kms deploy/helm/talos-kms > rendered-default.yaml
+          helm template talos-kms deploy/helm/talos-kms -f deploy/helm/ci-values.yaml > rendered-full.yaml
+          helm template talos-kms deploy/helm/talos-kms \
+            -f deploy/helm/ci-values.yaml \
+            --set externalSecret.enabled=false \
+            --set masterKey.keys.v1=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE= \
+            --set probes.enabled=false \
+            --set metrics.enabled=false \
+            --set tls.enabled=false \
+            > rendered-edge.yaml
+      - name: kubeconform
+        run: |
+          set -euo pipefail
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | tar -xz kubeconform
+          # Strict schema validation of built-in kinds, pinned to a released
+          # k8s schema version for reproducibility. CRDs (ExternalSecret,
+          # Certificate, ServiceMonitor) have no schema here and are skipped.
+          ./kubeconform -strict -summary -ignore-missing-schemas \
+            -kubernetes-version 1.34.0 \
+            rendered-default.yaml rendered-full.yaml rendered-edge.yaml
+
   release:
     runs-on: ubuntu-latest
     needs: test
