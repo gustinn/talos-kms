@@ -33,3 +33,12 @@ the chart creates one, use the fullname; else empty.
 {{- include "talos-kms.fullname" . -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Image reference: a pinned digest wins over the (mutable) tag. */}}
+{{- define "talos-kms.image" -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
+{{- end -}}
+{{- end -}}

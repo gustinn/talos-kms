@@ -40,7 +40,7 @@ spec:
       {{- end }}
       containers:
         - name: kms-server
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "talos-kms.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --kms-api-endpoint={{ .Values.apiEndpoint }}

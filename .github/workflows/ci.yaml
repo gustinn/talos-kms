@@ -8,12 +8,13 @@ concurrency:
   push:
     branches:
       - main
-    tags:
-      - v*
   pull_request:
     branches:
       - main
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -71,12 +72,12 @@ jobs:
             -kubernetes-version 1.34.0 \
             rendered-default.yaml rendered-full.yaml rendered-edge.yaml
 
-  release:
+  release-snapshot:
+    # Builds the release artifacts without publishing anything, so the release
+    # pipeline is validated on every PR and merge. Publishing happens only in
+    # release.yaml, triggered by an immutable tag push.
     runs-on: ubuntu-latest
     needs: test
-    permissions:
-      contents: write
-      packages: write
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -106,15 +107,7 @@ jobs:
           args: check
         env:
           IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}
-      - name: login-to-ghcr
-        if: github.ref_type == 'tag'
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: goreleaser-snapshot
-        if: github.ref_type != 'tag'
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -124,19 +117,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}
       - name: upload-snapshot-artifacts
-        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
           name: talos-kms-snapshot
           path: dist/*
           if-no-files-found: error
-      - name: goreleaser-release
-        if: github.ref_type == 'tag'
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_REPOSITORY: ${{ steps.image-repository.outputs.image_repository }}

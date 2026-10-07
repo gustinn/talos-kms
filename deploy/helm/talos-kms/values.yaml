@@ -1,6 +1,11 @@
 image:
   repository: ghcr.io/gustinn/talos-kms
   tag: ""            # defaults to .Chart.AppVersion
+  # Pin the exact image by digest (takes precedence over tag). GHCR tags are
+  # mutable; a digest makes the chart immune to a registry-side tag overwrite.
+  # Take it from the release that shipped this chart version, e.g.
+  #   docker manifest inspect ghcr.io/gustinn/talos-kms:<tag>
+  digest: ""         # e.g. sha256:...
   pullPolicy: IfNotPresent
 
 # Number of replicas. Run >1 for HA; all replicas must share the same master
@@ -68,6 +73,10 @@ masterKey:
 # used elsewhere), where each key version is a field on a single item.
 externalSecret:
   enabled: false
+  # How often external-secrets refreshes the Secret from the upstream store.
+  # The server loads key material only at startup: changes require a restart to
+  # take effect. To automate that, stakater/reloader watching this Secret can
+  # roll the Deployment when keys change; only then rotate currentKeyId.
   refreshInterval: 1h
   secretStoreRef:
     name: onepassword            # your (Cluster)SecretStore backed by 1Password
