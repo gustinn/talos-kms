@@ -8,6 +8,7 @@
 package certreload
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -80,7 +81,7 @@ func (r *Reloader) reload() (bool, error) {
 	}
 
 	r.mu.RLock()
-	unchanged := r.cert != nil && bytesEqual(certData, r.certData) && bytesEqual(keyData, r.keyData)
+	unchanged := r.cert != nil && bytes.Equal(certData, r.certData) && bytes.Equal(keyData, r.keyData)
 	r.mu.RUnlock()
 
 	if unchanged {
@@ -99,18 +100,4 @@ func (r *Reloader) reload() (bool, error) {
 	r.mu.Unlock()
 
 	return true, nil
-}
-
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
 }
