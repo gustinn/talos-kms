@@ -94,6 +94,33 @@ the cryptography, not from access control.
 Talos treats the blob as opaque bytes, so the versioned header is transparent to
 the node.
 
+### The authorization boundary is the network
+
+There is no API-level authorization, and none is possible until the Talos
+client supports client credentials — as of Talos v1.14 it sends no certificates
+and no tokens. The node UUID is not a secret (it appears in cluster state), so
+**anyone who can reach the gRPC port and knows a node's UUID can have that
+node's passphrase unsealed**. The NetworkPolicy CIDR lists in the Helm chart are
+therefore the actual access control. The chart is fail-closed: an empty list
+renders no ingress rule and the pod is fully isolated. Never widen the CIDRs
+beyond the hosts that must unseal, and never disable the NetworkPolicy.
+One non-obvious trap when configuring them: on Cilium, `ipBlock` entries do
+not match Cilium-managed pod sources — the lists must contain node/host CIDRs,
+not pod CIDRs (the Helm chart README covers this in detail).
+
+### `bindClientIP` and SNAT
+
+The chart ships `bindClientIP: true`. That is only meaningful where source
+addresses survive the network path: traffic that reaches the server through
+anything that SNATs — a Service with `externalTrafficPolicy: Cluster`, or many
+load balancer implementations — presents one shared address, and IP binding then
+either breaks unseal for every node or silently binds every blob to the proxy
+address. This is not a pre-enablement check: **every deployment that fronts the
+KMS with a Service or load balancer must verify what the server actually
+sees** — every audit log line records `client_ip`. If it is not the node's real
+address, set `bindClientIP: false`; the AEAD then binds node UUID only, and the
+NetworkPolicy CIDRs carry the entire access-control load.
+
 ## TLS: the STATE-partition constraint
 
 If nodes KMS-encrypt their **`STATE`** partition, the Talos client validates the

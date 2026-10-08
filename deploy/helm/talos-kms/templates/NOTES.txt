@@ -24,7 +24,8 @@ Checklist:
 {{- end }}
 {{- if and .Values.networkPolicy.enabled (not .Values.networkPolicy.ingressCIDRs) }}
   ! NetworkPolicy is enabled with no ingressCIDRs => all ingress denied.
-    Set networkPolicy.ingressCIDRs to your worker subnet(s) or nodes cannot unseal.
+    Set networkPolicy.ingressCIDRs to your worker node/host CIDRs or nodes
+    cannot unseal (pod CIDRs do not authorize Cilium-managed pod clients).
 {{- end }}
 {{- if and .Values.networkPolicy.enabled .Values.probes.enabled (not .Values.networkPolicy.probeCIDRs) }}
   ! NetworkPolicy is enabled with no probeCIDRs => kubelet probes are denied.

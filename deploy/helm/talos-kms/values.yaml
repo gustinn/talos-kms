@@ -138,12 +138,16 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
-# Restrict who may reach the KMS ports. Any port whose CIDR list is empty gets
-# no ingress rule at all, and a pod with no ingress rules is fully isolated:
-# deny-by-default. Populate each list to grant access to that port.
+# Restrict who may reach the KMS ports. There is no API-level authorization
+# (the Talos client cannot authenticate), so these lists ARE the access
+# control. Any port whose CIDR list is empty gets no ingress rule at all, and
+# a pod with no ingress rules is fully isolated: deny-by-default. Populate
+# each list to grant access to that port. ipBlock entries must be node/host
+# CIDRs: on Cilium, pod sources are matched by identity, not IP, so pod CIDRs
+# here do not authorize pod clients.
 networkPolicy:
   enabled: true
-  ingressCIDRs: []    # worker node/subnet ranges allowed to reach the KMS port, e.g. ["10.0.0.0/16"]
+  ingressCIDRs: []    # worker node/host ranges allowed to reach the KMS port, e.g. ["10.0.0.0/16"]
   metricsCIDRs: []    # ranges allowed to scrape the metrics port, e.g. your monitoring subnet
   # Kubelet probes arrive from the control-plane node the pod is pinned to.
   # CNIs that enforce default-deny against host traffic (e.g. Calico) block

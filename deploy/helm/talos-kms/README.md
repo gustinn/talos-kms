@@ -29,6 +29,26 @@ validates the server using only the **system/public CA trust store**
 (EPHEMERAL-only KMS encryption relaxes this, since STATE is already mounted at
 dial time — but this chart's defaults target the STATE case.)
 
+## Network reachability is the access control
+
+The Talos KMS client sends no client certificates and no tokens (see the repo
+README's security model), so the API cannot authenticate callers. Anyone who can
+reach port 4050 and knows a node's UUID can have that node's blob unsealed.
+Consequences for this chart:
+
+- **The NetworkPolicy CIDR lists are the access control.** Treat them as
+  security-critical configuration.
+- **Fail-closed by design.** A port whose CIDR list is empty gets no ingress
+  rule at all, and a pod with no rules is fully isolated. This is deliberate.
+- **Upgrading from a pre-fail-closed chart version:** the old chart rendered
+  empty lists as allow-all — the opposite of its comments. After upgrading,
+  an empty `ingressCIDRs` means **no node can unseal and the next node reboot
+  hangs at unlock**. Set the CIDR lists *before* the upgrade lands.
+- **`ipBlock` lists must contain node/host CIDRs.** Cilium-managed pod sources
+  are matched by identity, not by IP: pod CIDRs in `ingressCIDRs` do **not**
+  authorize pod clients (verified on Cilium 1.19). Talos nodes connect from
+  host addresses — list those.
+
 ## Prerequisites
 
 - [external-secrets](https://external-secrets.io/) operator + a configured
@@ -94,7 +114,9 @@ head -c 32 /dev/urandom | base64   # store as a field, e.g. key-v1
 ### Rotating a key (no re-seal)
 
 1. Add the new version (e.g. `key-v2`) to the 1Password item and to
-   `externalSecret.keys`; roll out. Now every replica can **unseal** v2.
+   `externalSecret.keys`; restart the pods so every replica can **unseal** v2
+   (the server loads keys only at startup — [stakater/Reloader](https://github.com/stakater/Reloader)
+   can automate the restart when the keys Secret changes).
 2. Set `masterKey.currentKeyId: v2` and roll out. New seals use v2.
 3. Leave v1 in place until no node's stored blob references it (nodes do not
    re-seal). Removing a still-referenced version makes those nodes fail to
@@ -106,13 +128,14 @@ head -c 32 /dev/urandom | base64   # store as a field, e.g. key-v1
 | --- | --- | --- |
 | `replicaCount` | `2` | HA; all replicas share the same key set |
 | `masterKey.currentKeyId` | `v1` | Key id used to seal new data |
-| `bindClientIP` | `true` | Disable only without stable node IPs |
+| `bindClientIP` | `true` | Keep only if the server sees real node IPs (check the audit log's `client_ip`); a SNATing LB path binds the proxy address — see the root README |
 | `probes.enabled` | `true` | Use plaintext HTTP `/livez` and `/readyz` probes |
 | `probes.port` | `8080` | Container-only probe port; not exposed by the Service |
 | `tls.enabled` | `true` | Disabling is for testing only |
 | `certManager.enabled` | `false` | Must use an ACME issuer (see above) |
 | `externalSecret.enabled` | `false` | Materializes the keys Secret (1Password) |
-| `networkPolicy.ingressCIDRs` | `[]` | Empty = deny all; set worker subnets |
+| `networkPolicy.ingressCIDRs` | `[]` | Empty = deny all; worker node/host CIDRs (pod CIDRs don't match on Cilium) |
+| `networkPolicy.probeCIDRs` | `[]` | Kubelet probe sources (control-plane node IPs); empty keeps the probe port isolated |
 | `metrics.enabled` | `true` | Exposes Prometheus `/metrics` on a separate port |
 | `metrics.serviceMonitor.enabled` | `false` | Render a Prometheus Operator ServiceMonitor |
 | `networkPolicy.metricsCIDRs` | `[]` | Ranges allowed to scrape metrics (plaintext) |
