@@ -138,12 +138,19 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
-# Restrict who may reach the KMS port. By default allow the whole cluster pod
-# CIDR is NOT assumed; set ingressCIDRs to your worker node/subnet ranges.
+# Restrict who may reach the KMS ports. Any port whose CIDR list is empty gets
+# no ingress rule at all, and a pod with no ingress rules is fully isolated:
+# deny-by-default. Populate each list to grant access to that port.
 networkPolicy:
   enabled: true
   ingressCIDRs: []    # worker node/subnet ranges allowed to reach the KMS port, e.g. ["10.0.0.0/16"]
   metricsCIDRs: []    # ranges allowed to scrape the metrics port, e.g. your monitoring subnet
+  # Kubelet probes arrive from the control-plane node the pod is pinned to.
+  # CNIs that enforce default-deny against host traffic (e.g. Calico) block
+  # them unless the node's address is allowed, which makes the pod fail
+  # liveness and restart-loop. List the control-plane node IPs (or their
+  # subnet) here. Empty keeps the probe port isolated.
+  probeCIDRs: []      # e.g. control-plane node IPs or their subnet
 
 resources:
   requests:

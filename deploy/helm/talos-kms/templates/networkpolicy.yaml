@@ -11,31 +11,49 @@ spec:
       {{- include "talos-kms.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+  # A rule with an empty `from` matches ALL sources — the opposite of the
+  # deny-by-default intent — so each rule is rendered only when its CIDR
+  # allow-list is non-empty, and no rules at all means the pod is isolated.
+  {{- if or .Values.networkPolicy.ingressCIDRs (and .Values.probes.enabled .Values.networkPolicy.probeCIDRs) (and .Values.metrics.enabled .Values.networkPolicy.metricsCIDRs) }}
   ingress:
+    {{- if .Values.networkPolicy.ingressCIDRs }}
+    # KMS API: only worker node/subnet ranges that need to seal/unseal.
     - from:
         {{- range .Values.networkPolicy.ingressCIDRs }}
         - ipBlock:
             cidr: {{ . | quote }}
         {{- end }}
-        {{- if not .Values.networkPolicy.ingressCIDRs }}
-        # No ingressCIDRs set: deny all KMS ingress. Set networkPolicy.ingressCIDRs
-        # to your worker node/subnet ranges to allow unseal traffic.
-        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.service.port }}
-    {{- if .Values.metrics.enabled }}
+    {{- end }}
+    {{- if and .Values.probes.enabled .Values.networkPolicy.probeCIDRs }}
+    # Kubelet probes arrive from the control-plane node running the pod. Without
+    # this rule the pod is isolated and probes fail on CNIs that police
+    # host-to-pod traffic, causing a restart loop.
+    - from:
+        {{- range .Values.networkPolicy.probeCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.probes.port }}
+    {{- end }}
+    {{- if and .Values.metrics.enabled .Values.networkPolicy.metricsCIDRs }}
     # Metrics is plaintext: restrict to the monitoring scraper only.
     - from:
         {{- range .Values.networkPolicy.metricsCIDRs }}
         - ipBlock:
             cidr: {{ . | quote }}
         {{- end }}
-        {{- if not .Values.networkPolicy.metricsCIDRs }}
-        # No metricsCIDRs set: deny all metrics ingress.
-        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.metrics.port }}
     {{- end }}
+  {{- else }}
+  # No CIDR allow-lists configured: an empty list grants no ingress, so the pod
+  # is fully isolated. Populate the networkPolicy CIDR values to grant access.
+  ingress: []
+  {{- end }}
 {{- end }}

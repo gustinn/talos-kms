@@ -26,6 +26,11 @@ Checklist:
   ! NetworkPolicy is enabled with no ingressCIDRs => all ingress denied.
     Set networkPolicy.ingressCIDRs to your worker subnet(s) or nodes cannot unseal.
 {{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.probes.enabled (not .Values.networkPolicy.probeCIDRs) }}
+  ! NetworkPolicy is enabled with no probeCIDRs => kubelet probes are denied.
+    Set networkPolicy.probeCIDRs to your control-plane node IPs/subnet, or the
+    pod will fail liveness and restart-loop on CNIs that police host traffic.
+{{- end }}
 
 Configure Talos worker machine config to point at this KMS:
 
